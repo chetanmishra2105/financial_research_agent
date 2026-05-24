@@ -1,0 +1,53 @@
+{
+  "nodes": [
+    {
+      "id": "__start__",
+      "type": "Node"
+    },
+    {
+      "id": "planner",
+      "type": "Node"
+    },
+    {
+      "id": "sec_agent",
+      "type": "Node"
+    },
+    {
+      "id": "news_agent",
+      "type": "Node"
+    },
+    {
+      "id": "metrics_agent",
+      "type": "Node"
+    },
+    {
+      "id": "competitor_agent",
+      "type": "Node"
+    },
+    {
+      "id": "risk_agent",
+      "type": "Node"
+    },
+    {
+      "id": "report_writer",
+      "type": "Node"
+    },
+    {
+      "id": "__end__",
+      "type": "Node"
+    }
+  ],
+  "edges": [
+    {
+      "source": "__start__",
+      "target": "planner",
+      "conditional": false
+    },
+    {
+      "source": "planner",
+      "target": "__end__",
+      "conditional": false
+    }
+  ],
+  "entry_point": null
+}

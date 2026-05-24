@@ -1,0 +1,45 @@
+# Core Framework
+langchain
+langgraph
+langchain-groq
+langchain-community
+loguru
+
+# MCP Protocol
+mcp
+pydantic
+
+# Vector Database
+chromadb
+sentence-transformers
+
+# API & UI
+fastapi
+uvicorn
+streamlit
+websockets
+grandalf
+
+# Data Processing
+pandas
+numpy
+yfinance
+sec-edgar-downloader
+pypdf
+
+# Web Scraping
+requests
+beautifulsoup4
+tavily-python
+
+# Utilities
+python-dotenv
+redis
+celery
+tenacity
+rich
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
