@@ -8,7 +8,7 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.runnables.graph import Graph
 import operator
-from src.utils.logger import logger
+from src.utils.logger import logger, log_input, log_output
 import asyncio
 
 
@@ -85,9 +85,11 @@ class FinancialResearchWorkflow:
     async def _planner_node(self, state: WorkflowState) -> WorkflowState:
         """Planner agent node"""
         logger.info("Executing planner agent...")
+        log_input("Workflow.planner", {"query": state["query"]})
         
         planner = self.agents["planner"]
         result = await planner.process({"query": state["query"]})
+        log_output("Workflow.planner", result)
         
         state["execution_plan"] = result.get("execution_plan", {})
         state["current_step"] = "planning_complete"
@@ -216,17 +218,98 @@ class FinancialResearchWorkflow:
                 "competitor_data": state.get("competitor_data", {}),
                 "risk_data": state.get("risk_data", {})
             })
-            state["final_report"] = result
-            
-            if result.get("success"):
-                state["messages"].append("Final investment report generated")
+            # Some agents return a wrapper like {"success": True, "agent": "ReportWriterAgent", "data": {...}}
+            # Unwrap the `data` field when present so downstream consumers get the expected report schema.
+            if isinstance(result, dict) and result.get("data") is not None:
+                raw_report = result.get("data")
             else:
-                state["errors"].append(f"Report writer error: {result.get('error')}")
+                raw_report = result
+
+            # Normalize raw report into the API's InvestmentReport schema
+            try:
+                normalized = self._normalize_report(raw_report)
+                state["final_report"] = normalized
+                state["messages"].append("Final investment report generated")
+            except Exception as norm_exc:
+                state["final_report"] = raw_report
+                err = None
+                if isinstance(result, dict):
+                    err = result.get("error")
+                state["errors"].append(f"Report writer error: {err or str(norm_exc)}")
                 
         except Exception as e:
             state["errors"].append(f"Report writer failed: {str(e)}")
             
         return state
+
+    def _normalize_report(self, report: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert various report shapes into the API's InvestmentReport schema."""
+        # Ensure we have a dict
+        if not isinstance(report, dict):
+            raise ValueError("Report is not a dict")
+
+        # Map simple fields
+        executive_summary = report.get("executive_summary", "")
+        recommendation = report.get("recommendation", "")
+        risk_level = report.get("risk_level", "")
+        confidence_score = float(report.get("confidence_score", 0.0))
+
+        # Company analysis: include metadata and executive summary snippet
+        company_analysis = {
+            "report_id": report.get("report_id"),
+            "query": report.get("query"),
+            "generated_at": report.get("generated_at"),
+            "executive_summary": executive_summary,
+        }
+
+        # Financial health: accept `key_metrics` or `financials`
+        financial_health = report.get("key_metrics") or report.get("financials") or {}
+
+        # Risks: normalize top_risks into list of risk objects
+        raw_risks = report.get("top_risks") or report.get("risks") or []
+        risks = []
+        for r in raw_risks:
+            if not isinstance(r, dict):
+                continue
+            risks.append({
+                "risk_name": r.get("name") or r.get("risk_name") or "",
+                "severity": r.get("severity", "Medium"),
+                "impact": r.get("impact", ""),
+                "probability": r.get("probability", ""),
+                "mitigation": r.get("mitigation")
+            })
+
+        # Competitors: try to build a small list from competitive_position
+        competitors = []
+        comp_pos = report.get("competitive_position")
+        if comp_pos:
+            competitors.append({
+                "company_name": comp_pos,
+                "market_position": comp_pos,
+                "strengths": [],
+                "weaknesses": [],
+                "market_share": None,
+                "threat_level": "Medium"
+            })
+
+        # News summary: if provided, pass through
+        news_summary = report.get("news_summary") or report.get("news") or []
+
+        investment_report = {
+            "executive_summary": executive_summary,
+            "company_analysis": company_analysis,
+            "financial_health": financial_health,
+            "risks": risks,
+            "competitors": competitors or None,
+            "news_summary": news_summary or None,
+            "recommendation": recommendation,
+            "risk_level": risk_level,
+            "confidence_score": confidence_score,
+            "supporting_evidence": report.get("supporting_evidence", []),
+            "disclaimers": report.get("disclaimers", [])
+        }
+
+        return investment_report
     
     def _route_after_planning(self, state: WorkflowState) -> list[str] | str:
         """Determine next step after planning"""
@@ -251,6 +334,7 @@ class FinancialResearchWorkflow:
     async def execute(self, query: str) -> Dict[str, Any]:
         """Execute the complete workflow"""
         logger.info(f"Starting workflow for query: {query}")
+        log_input("Workflow.execute", {"query": query})
         
         initial_state = WorkflowState(
             query=query,
@@ -277,7 +361,7 @@ class FinancialResearchWorkflow:
                 }
             )
             
-            return {
+            result = {
                 "success": True,
                 "query": query,
                 "execution_plan": final_state.get("execution_plan", {}),
@@ -285,15 +369,19 @@ class FinancialResearchWorkflow:
                 "execution_steps": final_state.get("messages", []),
                 "errors": final_state.get("errors", [])
             }
+            log_output("Workflow.execute", result)
+            return result
             
         except Exception as e:
-            logger.error(f"Workflow execution failed: {str(e)}")
-            return {
+            logger.exception(f"Workflow execution failed: {str(e)}")
+            error_result = {
                 "success": False,
                 "query": query,
                 "error": str(e),
                 "final_report": {}
             }
+            log_output("Workflow.execute", error_result)
+            return error_result
 
     def _create_render_graph(self) -> Graph:
         """Create a renderable graph with explicit branch edges."""

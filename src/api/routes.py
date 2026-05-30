@@ -12,7 +12,14 @@ from src.api.schemas import (
     ErrorResponse
 )
 from src.orchestrator.workflow import FinancialResearchWorkflow
-from src.utils.logger import logger
+from src.agents.planner_agent import PlannerAgent
+from src.agents.sec_retrieval_agent import SECRetrievalAgent
+from src.agents.financial_metrics_agent import FinancialMetricsAgent
+from src.agents.news_agent import NewsResearchAgent
+from src.agents.risk_analysis_agent import RiskAnalysisAgent
+from src.agents.competitor_agent import CompetitorAnalysisAgent
+from src.agents.report_writer_agent import ReportWriterAgent
+from src.utils.logger import logger, setup_logging, log_input, log_output
 import uuid
 
 
@@ -43,6 +50,12 @@ app = FastAPI(
     description="API for orchestrating financial research workflows"
 )
 
+
+@app.on_event("startup")
+async def app_startup():
+    setup_logging()
+    logger.info("FastAPI startup complete and logging configured")
+
 # In-memory job storage (use Redis in production)
 jobs = {}
 
@@ -65,12 +78,15 @@ async def conduct_research(
     """
     try:
         job_id = str(uuid.uuid4())
+        log_input("conduct_research", request.dict())
         
         # Initialize workflow
         workflow = get_workflow()
+        logger.info(f"Initialized workflow for request {job_id}")
         
         # Execute research
         result = await workflow.execute(request.query)
+        log_output("conduct_research", result)
         created_at = datetime.utcnow().isoformat() + "Z"
         
         if result.get("success"):
@@ -95,16 +111,18 @@ async def conduct_research(
             )
             
     except Exception as e:
-        logger.error(f"Research failed: {str(e)}")
+        logger.exception(f"Research failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/analyze-company")
 async def analyze_company(request: CompanyAnalysisRequest):
+    log_input("analyze_company", request.dict())
     """Analyze a specific company"""
     try:
         workflow = get_workflow()
         result = await workflow.execute(f"Analyze {request.company} investment potential")
+        log_output("analyze_company", result)
         
         return JSONResponse(content={
             "company": request.company,
@@ -113,6 +131,7 @@ async def analyze_company(request: CompanyAnalysisRequest):
         })
         
     except Exception as e:
+        logger.exception(f"analyze_company failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -129,14 +148,16 @@ async def health_check():
 
 def get_workflow() -> FinancialResearchWorkflow:
     """Dependency injection for workflow"""
-    # This would be properly initialized with all agents
-    # For now, return a placeholder
-    from src.agents.planner_agent import PlannerAgent
-
     agents = {
         "planner": PlannerAgent(),
-        # Add other agents here
+        "sec_agent": SECRetrievalAgent(),
+        "metrics_agent": FinancialMetricsAgent(),
+        "news_agent": NewsResearchAgent(),
+        "risk_agent": RiskAnalysisAgent(),
+        "competitor_agent": CompetitorAnalysisAgent(),
+        "report_writer": ReportWriterAgent()
     }
+    logger.info("Building FinancialResearchWorkflow with available agents")
 
     return FinancialResearchWorkflow(agents)
 

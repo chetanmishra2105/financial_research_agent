@@ -25,46 +25,58 @@ def start_api():
 def start_streamlit():
     """Start Streamlit UI"""
     logger.info("Starting Streamlit UI on http://localhost:8501")
-    subprocess.run([
-        "streamlit", "run",
-        "ui/streamlit_app.py",
-        "--server.port", "8501",
-        "--server.address", "0.0.0.0"
-    ])
+    try:
+        subprocess.run([
+            "streamlit", "run",
+            "ui/streamlit_app.py",
+            "--server.port", "8501",
+            "--server.address", "0.0.0.0"
+        ], check=True)
+    except Exception as e:
+        logger.exception(f"Start Streamlit failed: {str(e)}")
+        raise
 
 
 def main():
     """Main entry point"""
     setup_logging()
+    logger.info("Application startup")
     
-    if len(sys.argv) > 1:
-        command = sys.argv[1]
-        
-        if command == "api":
-            start_api()
-        elif command == "ui":
-            start_streamlit()
-        elif command == "all":
-            # Start both API and UI
-            from multiprocessing import Process
-            api_process = Process(target=start_api)
-            ui_process = Process(target=start_streamlit)
+    try:
+        if len(sys.argv) > 1:
+            command = sys.argv[1]
+            logger.info(f"CLI command received: {command}")
             
-            api_process.start()
-            ui_process.start()
-            
-            api_process.join()
-            ui_process.join()
+            if command == "api":
+                start_api()
+            elif command == "ui":
+                start_streamlit()
+            elif command == "all":
+                # Start both API and UI
+                from multiprocessing import Process
+                api_process = Process(target=start_api)
+                ui_process = Process(target=start_streamlit)
+                
+                api_process.start()
+                ui_process.start()
+                
+                api_process.join()
+                ui_process.join()
+            else:
+                logger.warning(f"Unknown command: {command}")
+                print("Usage: python -m src.main [api|ui|all]")
         else:
-            print("Usage: python -m src.main [api|ui|all]")
-    else:
-        print("AI Financial Research Assistant")
-        print("================================")
-        print("\nAvailable commands:")
-        print("  api  - Start FastAPI server")
-        print("  ui   - Start Streamlit UI")
-        print("  all  - Start both API and UI")
-        print("\nExample: python -m src.main api")
+            logger.info("No command provided, printing usage information")
+            print("AI Financial Research Assistant")
+            print("================================")
+            print("\nAvailable commands:")
+            print("  api  - Start FastAPI server")
+            print("  ui   - Start Streamlit UI")
+            print("  all  - Start both API and UI")
+            print("\nExample: python -m src.main api")
+    except Exception as e:
+        logger.exception(f"Application failed: {str(e)}")
+        raise
 
 
 if __name__ == "__main__":

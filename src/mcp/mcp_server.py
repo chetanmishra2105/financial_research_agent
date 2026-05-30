@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 import asyncio
 import json
-from src.utils.logger import logger
+from src.utils.logger import logger, log_input, log_output
 
 
 class MCPTool(BaseModel):
@@ -78,25 +78,29 @@ class MCPServer:
         tool = self.tools[tool_name]
         
         try:
+            log_input(f"{self.name}.call_tool", {"tool_name": tool_name, "arguments": arguments})
             # Validate input against schema
             self._validate_input(arguments, tool.input_schema)
             
             # Execute tool
             result = await tool.handler(**arguments)
-            
-            return {
+            output = {
                 "success": True,
                 "result": result,
                 "tool": tool_name
             }
+            log_output(f"{self.name}.call_tool", output)
+            return output
             
         except Exception as e:
-            logger.error(f"Tool execution failed: {str(e)}")
-            return {
+            logger.exception(f"Tool execution failed: {str(e)}")
+            error_output = {
                 "success": False,
                 "error": str(e),
                 "tool": tool_name
             }
+            log_output(f"{self.name}.call_tool", error_output)
+            return error_output
     
     def _validate_input(
         self,

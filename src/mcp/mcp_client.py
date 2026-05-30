@@ -2,7 +2,7 @@
 MCP Client - Client for interacting with MCP servers
 """
 from typing import Any, Dict, List, Optional
-from src.utils.logger import logger
+from src.utils.logger import logger, log_input, log_output
 import asyncio
 
 
@@ -31,6 +31,7 @@ class MCPClient:
             Connection success status
         """
         try:
+            log_input("MCPClient.connect", {"server_name": server_name})
             self.connected_servers[server_name] = server_instance
             
             # Cache available tools
@@ -39,10 +40,11 @@ class MCPClient:
                 self.tool_cache[f"{server_name}:{tool['name']}"] = tool
                 
             logger.info(f"Connected to MCP server: {server_name}")
+            log_output("MCPClient.connect", {"server_name": server_name, "tool_count": len(tools)})
             return True
             
         except Exception as e:
-            logger.error(f"Failed to connect to server {server_name}: {str(e)}")
+            logger.exception(f"Failed to connect to server {server_name}: {str(e)}")
             return False
     
     async def list_tools(self, server_name: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -97,15 +99,19 @@ class MCPClient:
             }
         
         try:
+            log_input("MCPClient.call_tool", {"server_name": server_name, "tool_name": tool_name, "arguments": arguments})
             result = await server.call_tool(tool_name, arguments)
+            log_output("MCPClient.call_tool", {"server_name": server_name, "tool_name": tool_name, "result": result})
             return result
             
         except Exception as e:
-            logger.error(f"Tool call failed: {str(e)}")
-            return {
+            logger.exception(f"Tool call failed: {str(e)}")
+            error_result = {
                 "success": False,
                 "error": str(e)
             }
+            log_output("MCPClient.call_tool", {"server_name": server_name, "tool_name": tool_name, "result": error_result})
+            return error_result
     
     def get_tool_info(self, server_name: str, tool_name: str) -> Optional[Dict[str, Any]]:
         """Get information about a specific tool"""

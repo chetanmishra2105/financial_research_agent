@@ -5,7 +5,7 @@ from typing import Any, Dict
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from src.agents.base_agent import BaseAgent
-from src.utils.logger import logger, log_agent_io
+from src.utils.logger import logger, log_agent_io, log_input, log_output
 from datetime import datetime
 
 
@@ -51,6 +51,7 @@ class ReportWriterAgent(BaseAgent):
         competitor_data = input_data.get("competitor_data", {})
         risk_data = input_data.get("risk_data", {})
         
+        log_input(f"{self.name}.process", input_data)
         logger.info("Report Writer generating investment memo")
         
         try:
@@ -101,12 +102,14 @@ class ReportWriterAgent(BaseAgent):
             ]
         }
         
-        return {
+        result = {
             "success": True,
             "agent": self.name,
             "data": report,
             "message": "Investment report generated successfully"
         }
+        log_output(f"{self.name}.process", result)
+        return result
     
     def _generate_template_report(self, query: str) -> str:
         """Generate a template-based report when LLM fails"""

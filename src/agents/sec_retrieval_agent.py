@@ -4,7 +4,7 @@ SEC Filing Retrieval Agent
 from typing import Any, Dict
 from langchain_openai import ChatOpenAI
 from src.agents.base_agent import BaseAgent
-from src.utils.logger import logger, log_agent_io
+from src.utils.logger import logger, log_agent_io, log_input, log_output
 
 
 class SECRetrievalAgent(BaseAgent):
@@ -21,11 +21,13 @@ class SECRetrievalAgent(BaseAgent):
         """Process SEC filing retrieval request"""
         company = input_data.get("company", "Unknown")
         
-        logger.info(f"SEC Agent processing request for {company}")
-        
-        # Simulate SEC filing retrieval
-        # In production, this would call SEC EDGAR API
-        sec_data = {
+        try:
+            log_input(f"{self.name}.process", input_data)
+            logger.info(f"SEC Agent processing request for {company}")
+            
+            # Simulate SEC filing retrieval
+            # In production, this would call SEC EDGAR API
+            sec_data = {
             "company": company,
             "filing_type": "10-K",
             "filing_date": "2024-03-15",
@@ -43,9 +45,21 @@ class SECRetrievalAgent(BaseAgent):
             }
         }
         
-        return {
-            "success": True,
-            "agent": self.name,
-            "data": sec_data,
-            "message": f"SEC filings retrieved for {company}"
-        }
+            result = {
+                "success": True,
+                "agent": self.name,
+                "data": sec_data,
+                "message": f"SEC filings retrieved for {company}"
+            }
+            log_output(f"{self.name}.process", result)
+            return result
+        except Exception as e:
+            logger.exception(f"Error in {self.name}.process: {str(e)}")
+            error_result = {
+                "success": False,
+                "agent": self.name,
+                "error": str(e),
+                "message": f"SEC filing retrieval failed for {company}"
+            }
+            log_output(f"{self.name}.process", error_result)
+            return error_result

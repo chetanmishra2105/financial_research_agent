@@ -31,7 +31,7 @@ def get_llm() -> ChatOpenAI:
         model=settings.LLM_MODEL,
         temperature=settings.LLM_TEMPERATURE,
         max_tokens=settings.LLM_MAX_TOKENS,
-        api_key=settings.OPENAI_API_KEY
+        api_key=settings.GROQ_API_KEY
     )
 
 
